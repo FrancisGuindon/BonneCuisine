@@ -1,0 +1,10 @@
+{
+  "nav_menu": "Menu",
+  "nav_contact": "Contact us",
+  "nav_admin": "Admin",
+  "nav_admin_addMenu": "Add menu",
+  "nav_admin_modifyMenu": "Change menus",
+  "nav_admin_deleteMenu": "Delete menus",
+  "nav_connexion": "Login",
+  "nav_deconnexion": "Log out"
+}

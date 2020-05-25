@@ -1,0 +1,408 @@
+﻿<?php
+include "utils/devise_conversion.php";
+include "class/menuContainerClass.php";
+include "vars.php";
+
+function connexionPOO(&$bd)
+{
+    global $host, $user, $pass, $databaseName;
+    try {
+        $bd = new PDO('mysql:host=' . $host . ';dbname=' . $databaseName . ';charset=utf8', $user, $pass);
+        $bd->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    } catch (Exception $e) {
+        echo "Échec lors de la connexion à Mysql : " . $e->getMessage();
+    }
+}
+
+function validerUsagerPOO($bd, $username, $password)
+{
+    $requete = $bd->prepare("SELECT nom, motPasse from usager where nom=:username");
+    $requete->execute(array('username' => $username));
+
+    $requete->setFetchMode(PDO::FETCH_OBJ);
+    while ($ligne = $requete->fetch()) {
+        if (password_verify($password, $ligne->motPasse))
+            return true;
+    }
+
+    return false;
+}
+
+function validerUsername($bd, $username)
+{
+    $requete = $bd->prepare("SELECT nom from usager where nom=:username");
+    $requete->execute(array('username' => $username));
+
+    $requete->setFetchMode(PDO::FETCH_OBJ);
+    if ($requete->fetch()) // S'il trouve un username avec le username écrit par l'utilisateur
+    {
+        return true; // Existe
+    }
+
+    return false; // Existe pas
+}
+
+function ajouterUsager($bd, $email, $password)
+{
+    $password = password_hash($password, PASSWORD_DEFAULT);
+    $nomArr = explode('@', $email);
+    $nom = $nomArr[0];
+
+    $requete = $bd->prepare("INSERT INTO usager (nom, motPasse, courriel) VALUES (:nom, :password, :email)");
+    $requete->execute(array('nom' => $nom, 'password' => $password, 'email' => $email));
+}
+
+function commencer5minTimer($bd, $username, &$demandeUnique, &$randomKey)
+{
+    $random = rand(100, 100000000);
+    $randomKey = md5($random);
+
+    try {
+        $requete = $bd->prepare("INSERT INTO forgot_password 
+		VALUES ((SELECT idUsager FROM usager WHERE nom = :username),
+		:randomKey, now() + INTERVAL 5 MINUTE);");
+
+        $requete->execute(array('username' => $username, 'randomKey' => $randomKey));
+    } catch (Exception $e) {
+        $demandeUnique = false;
+    }
+}
+
+function envoyerCourriel($bd, $username, $randomKey)
+{
+    $sujet = "Réinitialisation du mot de passe pour Bonne Cuisine";
+    $message = "Vous avez fait une demande pour réinitialiser votre mot de passe. Pour se faire, cliquez sur le lien suivant : https://web.dptinfo.collegealma.ca/~GUIF04049903/bonneCuisine/motPasse.php?key=" . $randomKey . " " .
+        "p.s. Vous avez un délai de 5 minutes. Dépassez ce délai, vous devez faire une nouvelle demande.";
+    $headers = "From: La Bonne Cuisine < etudiant.info@collegealma.ca >";
+
+    $requete = $bd->prepare("SELECT courriel from usager where nom = :username");
+    $requete->execute(array('username' => $username));
+    $resultat = $requete->fetch();
+    $email = $resultat["courriel"];
+
+    if (mail($email, $sujet, $message)) {
+        $recupStatus = "Un courriel a été envoyé à votre adresse courriel. Veuillez suivre les instructions dans le message.";
+    } else {
+        $recupStatus = "Échec de l'envoi de courriel. Veuillez contacter l'administrateur de ce site (cliquez sur Contactez-nous).";
+    }
+    return $recupStatus;
+}
+
+function verifierValidite($bd, $key)
+{
+    date_default_timezone_set("America/Toronto");
+
+    // Vérifier le 5 mins
+    $requete = $bd->prepare("SELECT expiry_time, idUsager FROM forgot_password where randomKey = :randomKey");
+    $requete->execute(array('randomKey' => $key));
+
+    if ($resultat = $requete->fetch()) // Vérification si la demande de changement de mot passe existe vraiment.
+    {
+        $expiryTime = $resultat["expiry_time"];
+        $currentDatetime = date("Y-m-d H:i:s");
+
+        if (!isset($_COOKIE['idUsager'])) {
+            setcookie("idUsager", $resultat["idUsager"], time() + (60 * 5));
+        }
+        if ($expiryTime < $currentDatetime) // Si le temps est expiré
+        {
+            redirectionToIndex(true);
+            return false;
+        } else {
+            return true;
+        }
+    } else // Si la demande de changement n'existe pas
+    {
+        redirectionToIndex(false);
+        return false;
+    }
+}
+
+function redirectionToIndex($error)
+{
+    if ($error) {
+        header("Location: index.php?success=false");
+    }
+    else {
+        header("Location: index.php");
+    }
+}
+
+function changePassword($bd, $password, $passwordConfirm, $idUsager)
+{
+    if ($password == $passwordConfirm) {
+        $password = password_hash($password, PASSWORD_DEFAULT);
+        $requete = $bd->prepare("UPDATE usager SET motPasse = :password WHERE idUsager = :idUsager");
+        $requete->execute(array('password' => $password, 'idUsager' => $idUsager));
+
+        $requete2 = $bd->prepare("DELETE FROM forgot_password WHERE idUsager = :idUsager");
+        $requete2->execute(array('idUsager' => $idUsager));
+        return true;
+    } else {
+        return false;
+    }
+
+}
+
+function showMenusNormal($tousMenus)
+{
+    // FR
+    foreach ($tousMenus as $unMenu) {
+        $ext = getFileExtension($unMenu->francais->idMenu);
+        print("
+            <div class='text-white container-fluid'>
+                <div class='row divItem' style='display: table'>
+                <img class='imgMenu' src='images/" . $unMenu->francais->idMenu . $ext . "?" . time() . "' alt='Image du menu'>
+                    <table class='caption table table-dark' style='vertical-align: middle; display: table-cell;'>
+                    <thead>
+                        <tr>
+                            <th>Information</th>
+                            <th>Français</th>
+                            <th>Anglais</th>
+                        </tr>
+                    </thead>
+                    
+                    <tbody>
+                    <tr>
+                        <th>Nom : </th>
+                        <td>" . $unMenu->francais->nom . "</td>
+                        <td>" . $unMenu->anglais->nom . "</td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Prix: \$CA</td>
+      
+                    <td colspan='2' class='text-center'>" . $unMenu->francais->prix . " $</td>
+                    
+                    <td><a href='modifierMenu.php?action=modifier&item=" . $unMenu->francais->idMenu . "'>Modifier</a></td>
+                    </tr>
+                    
+                    <tr>
+                        <td>Remarque :</td>
+                        <td>" . $unMenu->francais->description . "</td>
+                        <td>" . $unMenu->anglais->description . "</td>
+                    </tr>
+                    </tbody>
+                    </table>
+                
+                </div>
+            </div>
+            ");
+    }
+}
+
+function selectMenusBD($bd, $where = "1=1")
+{
+    $allRequests = array();
+    // FR
+    $requeteFR = $bd->prepare("SELECT * from menu_fr WHERE :where");
+    $requeteFR->execute(array('where' => $where));
+    $requeteFR->setFetchMode(PDO::FETCH_OBJ);
+
+    // EN
+    $requeteEN = $bd->prepare("SELECT * from menu_en WHERE :where");
+    $requeteEN->execute(array('where' => $where));
+    $requeteEN->setFetchMode(PDO::FETCH_OBJ);
+
+
+    while ($resultatFR = $requeteFR->fetch()) {
+        $resultatEN = $requeteEN->fetch();
+
+        array_push($allRequests, new MenuContainer($resultatFR, $resultatEN));
+    }
+
+    return $allRequests;
+}
+
+function showMenusModifier($tousMenus, $item)
+{
+    foreach ($tousMenus as &$unMenu) {
+        $ext = getFileExtension($unMenu->francais->idMenu);
+        if ($unMenu->francais->idMenu == $item) {
+            print("
+            <p>
+			<div class='text-white container-fluid'>
+			<form class='mt-5' method='POST' enctype='multipart/form-data' action='modifierMenu.php?action=confirmModifier&id=" . $unMenu->francais->idMenu . "'>
+				<div class='row divItem' style='display: table'>
+					<img class='imgMenu' src='images/" . $unMenu->francais->idMenu . $ext . "?" . time() . "'>
+					<div class='caption' style='vertical-align: middle; display: table-cell;'>
+                        <table class='table table-dark'>
+                            <thead>
+                                <tr>
+                                    <th>Information</th>
+                                    <th>Français</th>
+                                    <th>Anglais</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <label class='align-content-center'>Nom :  </label>
+                                    </td>
+
+                                    <td>
+                                        <input type='text' name='nomFR' value='" . $unMenu->francais->nom . "'/>
+                                    </td>
+                                    
+                                    <td>
+                                        <input type='text' name='nomEN' value='" . $unMenu->anglais->nom . "'/>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <label class='align-content-center' for='prix'>Prix : </label>
+                                    </td>
+                                    
+                                    <td colspan='2'>
+                                        <input type='number' step='0.01' name='prix' value='" . $unMenu->francais->prix . "'/>
+                                    </td>
+                                </tr>
+                                
+                                <tr>
+                                    <td>
+                                        <label class='align-content-center'> Description : </label>
+                                    </td>
+                                    
+                                    <td>
+                                        <textarea type='text' name='descriptionFR'>" . $unMenu->francais->description . "</textarea>
+                                    </td>
+                                    
+                                    <td>
+                                        <textarea type='text' name='descriptionEN'>" . $unMenu->anglais->description . "</textarea>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                    <label class='align-content-center' for='img'> Image : </label>
+                                    </td>
+                                    <td colspan='2'>
+                                    
+                                        <div id='drop_file_zone' ondrop='upload_file(event)' ondragover='return false'>
+                                            <div id='drag_upload_file'>
+                                                <p>Drop file here</p>
+                                                <p>or</p>
+                                                <p><input type='button' value='Select File' onclick='file_explorer();'></p>
+                                                <input type='file' id='selectfile'>
+                                            </div>
+                                        </div>
+                                        
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <input type='submit' class='btn btn-info' name='modifierMenu' value='Enregistrer' />
+                        <a type='reset' class='btn btn-secondary' href='modifierMenu.php'>Annuler</a>
+                        </div>
+				</div>
+				</form>
+			</div>
+		</p>
+		");
+        } else {
+            print("
+               <p>
+				<div class='text-white container-fluid'>
+					<div class='row divItem' style='display: table'>
+						<img class='imgMenu' src='images/" . $unMenu->francais->idMenu . ".png'>
+						<div class='caption' style='vertical-align: middle; display: table-cell;'>
+							Nom : " . $unMenu->francais->nom . "<br>
+							Prix: \$CA " . $unMenu->francais->prix . "<br>
+							Remarque : " . $unMenu->francais->description . "<br>
+							<a href='modifierMenu.php?action=modifier&item=" . $unMenu->francais->idMenu . "'>Modifier</a>
+						</div>
+					</div>
+				</div>
+			</p>
+			");
+        }
+    }
+}
+
+function getFileExtension($idMenu)
+{
+    if (file_exists("images/" . $idMenu . ".jpg")) {
+        return ".jpg";
+    } else if (file_exists("images/" . $idMenu . ".jpeg")) {
+        return ".jpeg";
+    } else if (file_exists("images/" . $idMenu . ".png")) {
+        return ".png";
+    } else {
+        return false;
+    }
+}
+
+function showMenusDeletable($tousMenus)
+{
+    print("<p class='text-center text-white' > Sélectionnez les menus que vous voulez supprimer et appuyer sur le bouton en bas de cette page pour enregistrer .</p> ");
+    print("<form method = 'POST' action = 'supprimerMenu.php?action=supprimer' > ");
+
+    foreach ($tousMenus as &$unMenu) {
+        $ext = getFileExtension($unMenu->francais->idMenu);
+        print("
+            <div class='text-white container-fluid' >
+                <div class='row divItem' style = 'display: table' >
+                    <img class='imgMenu' src = 'images/" . $unMenu->francais->idMenu . $ext . "?" . time() . "' alt='Image du menu'>
+                    <div class='caption' style = 'vertical-align: middle; display: table-cell;' >
+                       <table class='table table-dark' >
+                            <thead>
+                                <tr>
+                                    <th>Information</th>
+                                    <th>Français</th>
+                                    <th>Anglais</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        Nom :
+                                    </td>
+
+                                    <td>
+                                        " . $unMenu->francais->nom . "
+                                    </td>
+                                    
+                                    <td>
+                                        " . $unMenu->anglais->nom . "
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        Prix :
+                                    </td>
+                                    
+                                    <td colspan = '2'>
+                                        <div class='text-center' > " . $unMenu->francais->prix . " $</div >
+                                    </td>
+                                </tr>
+                                
+                                <tr>
+                                    <td>
+                                        Description :
+                                    </td>
+                                    
+                                    <td>
+                                        " . $unMenu->francais->description . "
+                                    </td>
+                                    
+                                    <td>
+                                        " . $unMenu->anglais->description . "
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <label class='font-weight-bold' > Supprimer ?</label >
+                        <input name = 'del" . $unMenu->francais->idMenu . "' type = 'checkbox' >
+                    </div >
+                </div >
+            </div >
+");
+    }
+    print("<input type = 'submit' class='btn btn-info' value = 'Supprimer' > ");
+    print("</form > ");
+}
+
+?>

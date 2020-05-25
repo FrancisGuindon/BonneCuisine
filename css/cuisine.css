@@ -1,0 +1,157 @@
+
+#connexion {
+    color: lightblue;
+    text-decoration: underline;
+}
+
+#shoppingCart {
+    filter: invert(100%);
+}
+
+.nav-link {
+    font-size: 20px;
+}
+
+.imgText a {
+    display: flex;
+}
+
+.imgText a img {
+    margin-right: 10px;
+    display: block;
+    filter: invert(100%);
+}
+
+tr td label {
+    width: 100%;
+}
+
+table td input,
+table td textarea {
+    width: 100%;
+}
+
+/* Cacher icone panier on navbar collapse */
+@media (min-width: 992px) {
+    #hideOnCollapse {
+        display: none;
+    }
+}
+
+/* Afficher icone panier on navbar expand */
+#aCart.collapse div#hideOnCollapse {
+    display: inline-block;
+}
+
+.imgText,
+#connexion {
+    margin-left: 10px;
+}
+
+body {
+    background-color: #343A40;
+    color: #949DA0;
+    margin-bottom: 60px;
+    height: 100%;
+}
+
+label {
+    text-align: right;
+    clear: both;
+    float: left;
+    margin-right: 15px;
+}
+
+#infos {
+    background-color: gray;
+    border-radius: 10px;
+}
+
+div.form-group > label {
+    color: white;
+}
+
+.text-white {
+    color: white;
+}
+
+/* #region Footer at bottom of the page */
+html {
+    position: relative;
+    min-height: 100%;
+}
+
+.footer {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 50px;
+}
+
+/* #endregion */
+
+#messageErreur {
+    font-size: 20px;
+    padding-bottom: 15px;
+}
+
+
+#mdpOublie a {
+    color: #18CDFF;
+}
+
+.pad-b {
+    padding-bottom: 15px;
+}
+
+.carousel .item img {
+    max-height: 768px;
+    min-width: auto;
+}
+
+@media only screen and (max-width: 600px) {
+    img.imgMenu {
+        width: 250px;
+        padding-right: 20px;
+    }
+}
+
+@media only screen and (min-width: 601px) {
+    img.imgMenu {
+        width: 400px;
+        padding-right: 20px;
+    }
+}
+
+.username {
+    vertical-align: middle;
+    font-size: 20px;
+}
+
+
+#drop_file_zone {
+    background-color: #EEE;
+    border: #999 5px dashed;
+    width: 290px;
+    height: 200px;
+    padding: 8px;
+    width:100%;
+    font-size: 18px;
+}
+
+#drag_upload_file {
+    width: 50%;
+    margin: 0 auto;
+}
+
+#drag_upload_file p {
+    text-align: center;
+}
+
+#drag_upload_file #selectfile {
+    display: none;
+}
+
+div#drag_upload_file p {
+    color: black;
+}
