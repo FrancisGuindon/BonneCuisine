@@ -1,5 +1,5 @@
 # BonneCuisine
-Semester project in Web (mostly back-end).
+Semester project in Web (mostly back-end).<br>
 Website will work from a localhost or any hosted server. This should be used for learning or showing purposes.
 
 # Warning
